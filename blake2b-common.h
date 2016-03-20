@@ -1,5 +1,5 @@
-#ifndef BLAKE2_AVX2_COMMON_H
-#define BLAKE2_AVX2_COMMON_H
+#ifndef BLAKE2_AVX2_BLAKE2B_COMMON_H
+#define BLAKE2_AVX2_BLAKE2B_COMMON_H
 
 #include <stddef.h>
 #include <stdint.h>

@@ -5,7 +5,7 @@
 
 #include "blake2.h"
 #include "blake2b.h"
-#include "common.h"
+#include "blake2b-common.h"
 
 ALIGN(64) static const uint64_t blake2b_IV[8] = {
   UINT64_C(0x6A09E667F3BCC908), UINT64_C(0xBB67AE8584CAA73B),

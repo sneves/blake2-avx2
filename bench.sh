@@ -1,4 +1,4 @@
-for primitive in blake2b.c blake2bp.c
+for primitive in blake2b.c blake2bp.c blake2sp.c
 do
   for compiler in gcc clang
   do
