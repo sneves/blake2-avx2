@@ -205,13 +205,12 @@ static int blake2s_root(uint8_t * out, const uint8_t in[8 * BLAKE2S_OUTBYTES]) {
   const __m128i parameter_block = _mm_set_epi32(0x20010000, 0, 0, 0x02080020UL);
   __m128i a = XOR128(LOAD128(&blake2s_IV[0]), parameter_block);
   __m128i b = LOAD128(&blake2s_IV[4]);
-  uint64_t counter = 0;
   int i;
   for(i = 0; i < 4; ++i) {
-    const uint32_t flag = (i == 3) ? -1 : 0;
-    counter += BLAKE2S_BLOCKBYTES;
+    const uint64_t counter = BLAKE2S_BLOCKBYTES * (i + 1);
+    const uint32_t flag    = (i == 3) ? -1 : 0;
     BLAKE2S_COMPRESS_V1(a, b, in, (counter & 0xFFFFFFFF), (counter >> 32), flag, flag);
-    in    += BLAKE2S_BLOCKBYTES;
+    in += BLAKE2S_BLOCKBYTES;
   }
   STOREU128(out +  0, a);
   STOREU128(out + 16, b);
@@ -388,9 +387,9 @@ int blake2sp(uint8_t * out, const uint8_t * in, size_t inlen) {
     __m128i s[2*8];
   } lanes;
   union {
-    __m256i  v[2];
-    uint64_t w[8];
-  } counter = { 0 };
+    __m256i  v;
+    uint32_t w[8];
+  } counterl = { 0 }, counterh = { 0 };
   int i, lane;
 
   for(i = 0; i < 8; ++i) {
@@ -404,7 +403,7 @@ int blake2sp(uint8_t * out, const uint8_t * in, size_t inlen) {
   do {
     size_t block_size = 8 * BLAKE2S_BLOCKBYTES;
     const uint8_t * ptr = in;
-    __m256i x0, x1, x2, x3, x4, x5, f0, f1, cl, ch;
+    __m256i x0, x1, x2, x3, x4, x5, f0;
 
     if(inlen < block_size) {
       memcpy(buffer, in, inlen);
@@ -413,33 +412,35 @@ int blake2sp(uint8_t * out, const uint8_t * in, size_t inlen) {
       ptr = buffer;
     }
 
-    x0 = x1 = _mm256_set1_epi64x(inlen);
+    /* Some adhoc unsigned comparisons */
+#define _mm256_not_si256(x) _mm256_xor_si256((x), _mm256_set1_epi32(-1))
+#define _mm256_cmpge_epu32(x, y) _mm256_cmpeq_epi32((x), _mm256_max_epu32((x), (y)))
+#define _mm256_cmple_epu32(x, y) _mm256_cmpge_epu32((y), (x))
+#define _mm256_cmpgt_epu32(x, y) _mm256_not_si256(_mm256_cmple_epu32((x), (y)))
+#define _mm256_cmplt_epu32(x, y) _mm256_cmpgt_epu32((y), (x))
 
-    x2 = _mm256_cmpgt_epi64(x0, _mm256_set_epi64x(192, 128,  64,   0)); /* inlen > 64? */
-    x3 = _mm256_cmpgt_epi64(x1, _mm256_set_epi64x(448, 384, 320, 256)); /* inlen > 64? */
+    x0 = _mm256_set1_epi32(inlen & 0xFFFFFFFFUL);
+    x1 = _mm256_set1_epi32(inlen / (1ULL << 32));
+    /* x2 = inlen < 2^32 ? -1 : 0 */
+    x2 = _mm256_cmpeq_epi32(x1, _mm256_setzero_si256());
+    /* x3 = inlen > {448, ..., 0} ? -1 : 0 */
+    x3 = _mm256_cmpge_epu32(x0, _mm256_set_epi32(448+1, 384+1, 320+1, 256+1, 192+1, 128+1, 64+1, 0+1));
+    /* if inlen > {448, ..., 0}, inlen - {448, ..., 0} */
+    /* otherwise 0 */
+    x4 = _mm256_and_si256(x3, _mm256_sub_epi32(x0, _mm256_set_epi32(448, 384, 320, 256, 192, 128, 64, 0)));
+    /* if inlen >= 2^32, we want 64 no matter what */
+    /* if inlen  < 2^32, we want min(x3, 64) */
+    x5 = _mm256_xor_si256(_mm256_and_si256(x2, _mm256_min_epu32(x4, _mm256_set1_epi32(64))),
+                          _mm256_andnot_si256(x2, _mm256_set1_epi32(64)));
 
-    x2 = _mm256_blendv_epi8(_mm256_setzero_si256(), _mm256_sub_epi64(x0, _mm256_set_epi64x(192, 128,  64,   0)), x2); /* if inlen > 64 inlen -= 64 */
-    x3 = _mm256_blendv_epi8(_mm256_setzero_si256(), _mm256_sub_epi64(x1, _mm256_set_epi64x(448, 384, 320, 256)), x3); /* if inlen > 64 inlen -= 64 */
+    /* if inlen >= 2^32, we want 0 */
+    /* if inlen  < 2^32, we want the comparison */
+    f0 = _mm256_cmpge_epu32(_mm256_set_epi32(512+448, 512+384, 512+320, 512+256, 512+192, 512+128, 512+64, 512+0), x0);
+    f0 = _mm256_and_si256(f0, x2);
 
-    x4 = _mm256_cmpgt_epi64(x2, _mm256_set1_epi64x(64)); /* min(0, inlen - 64) > 64? */
-    x5 = _mm256_cmpgt_epi64(x3, _mm256_set1_epi64x(64)); /* min(0, inlen - 64) > 64? */
-
-    x4 = _mm256_blendv_epi8(x2, _mm256_set1_epi64x(64), x4); /* if so, cap at 64 */
-    x5 = _mm256_blendv_epi8(x3, _mm256_set1_epi64x(64), x5); /* if so, cap at 64 */
-
-    f0 = _mm256_cmpgt_epi64(_mm256_set_epi64x(512+384+1, 512+256+1, 512+128+1, 512+ 0+1), x0);
-    f1 = _mm256_cmpgt_epi64(_mm256_set_epi64x(512+448+1, 512+320+1, 512+192+1, 512+64+1), x1);
-    f0 = _mm256_blend_epi32(f0, f1, 0xAA);
-
-    counter.v[0] = _mm256_add_epi64(counter.v[0], x4);
-    counter.v[1] = _mm256_add_epi64(counter.v[1], x5);
-
-    x0 = _mm256_permutevar8x32_epi32(counter.v[0], _mm256_set_epi32(7, 5, 3, 1, 6, 4, 2, 0));
-    x1 = _mm256_permutevar8x32_epi32(counter.v[1], _mm256_set_epi32(7, 5, 3, 1, 6, 4, 2, 0));
-    cl = _mm256_permute2x128_si256(x0, x1, 0x20);
-    ch = _mm256_permute2x128_si256(x0, x1, 0x31);
-
-    BLAKE2S_COMPRESS_V8(v, ptr, cl, ch, f0);
+    counterl.v = _mm256_add_epi32(counterl.v, x5);
+    counterh.v = _mm256_sub_epi32(counterh.v, _mm256_cmplt_epu32(counterl.v, x5)); /* ch -= cl < x5 ? -1 : 0 */
+    BLAKE2S_COMPRESS_V8(v, ptr, counterl.v, counterh.v, f0);
     in    += block_size;
     inlen -= block_size;
   } while(inlen >= 8 * BLAKE2S_BLOCKBYTES);
@@ -456,8 +457,9 @@ int blake2sp(uint8_t * out, const uint8_t * in, size_t inlen) {
       block_size = inlen;
       ptr = buffer;
     }
-    counter.w[lane] += block_size;
-    BLAKE2S_COMPRESS_V1(lanes.s[lane*2+0], lanes.s[lane*2+1], ptr, counter.w[lane], counter.w[lane] >> 32, -1, -(lane == 7));
+    counterl.w[lane] += block_size;
+    counterh.w[lane] += counterl.w[lane] < block_size;
+    BLAKE2S_COMPRESS_V1(lanes.s[lane*2+0], lanes.s[lane*2+1], ptr, counterl.w[lane], counterh.w[lane], -1, -(lane == 7));
     in    += block_size;
     inlen -= block_size;
   }
