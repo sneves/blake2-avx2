@@ -190,7 +190,7 @@ static int blake2b_root(uint8_t * out, const uint8_t in[4 * BLAKE2B_OUTBYTES]) {
   return 0;
 }
 
-
+#if 0
 #define BLAKE2B_G_V4(m, r, i, a, b, c, d) do {                       \
   a = ADD(a, LOAD((uint8_t const *)(m) + blake2b_sigma[r][2*i+0]));  \
   a = ADD(a, b); d = XOR(d, a); d = ROT32(d);                        \
@@ -210,6 +210,123 @@ static int blake2b_root(uint8_t * out, const uint8_t in[4 * BLAKE2B_OUTBYTES]) {
   BLAKE2B_G_V4(m, r, 6, v[ 2], v[ 7], v[ 8], v[13]);  \
   BLAKE2B_G_V4(m, r, 7, v[ 3], v[ 4], v[ 9], v[14]);  \
 } while(0)
+#else
+#define BLAKE2B_ROUND_V4(v, m, r) do {                                        \
+  v[0] = ADD(v[0], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 0 + 0])); \
+  v[1] = ADD(v[1], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 1 + 0])); \
+  v[2] = ADD(v[2], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 2 + 0])); \
+  v[3] = ADD(v[3], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 3 + 0])); \
+  v[0] = ADD(v[0], v[4]);                                                     \
+  v[1] = ADD(v[1], v[5]);                                                     \
+  v[2] = ADD(v[2], v[6]);                                                     \
+  v[3] = ADD(v[3], v[7]);                                                     \
+  v[12] = XOR(v[12], v[0]);                                                   \
+  v[13] = XOR(v[13], v[1]);                                                   \
+  v[14] = XOR(v[14], v[2]);                                                   \
+  v[15] = XOR(v[15], v[3]);                                                   \
+  v[12] = ROT32(v[12]);                                                       \
+  v[13] = ROT32(v[13]);                                                       \
+  v[14] = ROT32(v[14]);                                                       \
+  v[15] = ROT32(v[15]);                                                       \
+  v[8] = ADD(v[8], v[12]);                                                    \
+  v[9] = ADD(v[9], v[13]);                                                    \
+  v[10] = ADD(v[10], v[14]);                                                  \
+  v[11] = ADD(v[11], v[15]);                                                  \
+  v[4] = XOR(v[4], v[8]);                                                     \
+  v[5] = XOR(v[5], v[9]);                                                     \
+  v[6] = XOR(v[6], v[10]);                                                    \
+  v[7] = XOR(v[7], v[11]);                                                    \
+  v[4] = ROT24(v[4]);                                                         \
+  v[5] = ROT24(v[5]);                                                         \
+  v[6] = ROT24(v[6]);                                                         \
+  v[7] = ROT24(v[7]);                                                         \
+  v[0] = ADD(v[0], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 0 + 1])); \
+  v[1] = ADD(v[1], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 1 + 1])); \
+  v[2] = ADD(v[2], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 2 + 1])); \
+  v[3] = ADD(v[3], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 3 + 1])); \
+  v[0] = ADD(v[0], v[4]);                                                     \
+  v[1] = ADD(v[1], v[5]);                                                     \
+  v[2] = ADD(v[2], v[6]);                                                     \
+  v[3] = ADD(v[3], v[7]);                                                     \
+  v[12] = XOR(v[12], v[0]);                                                   \
+  v[13] = XOR(v[13], v[1]);                                                   \
+  v[14] = XOR(v[14], v[2]);                                                   \
+  v[15] = XOR(v[15], v[3]);                                                   \
+  v[12] = ROT16(v[12]);                                                       \
+  v[13] = ROT16(v[13]);                                                       \
+  v[14] = ROT16(v[14]);                                                       \
+  v[15] = ROT16(v[15]);                                                       \
+  v[8] = ADD(v[8], v[12]);                                                    \
+  v[9] = ADD(v[9], v[13]);                                                    \
+  v[10] = ADD(v[10], v[14]);                                                  \
+  v[11] = ADD(v[11], v[15]);                                                  \
+  v[4] = XOR(v[4], v[8]);                                                     \
+  v[5] = XOR(v[5], v[9]);                                                     \
+  v[6] = XOR(v[6], v[10]);                                                    \
+  v[7] = XOR(v[7], v[11]);                                                    \
+  v[4] = ROT63(v[4]);                                                         \
+  v[5] = ROT63(v[5]);                                                         \
+  v[6] = ROT63(v[6]);                                                         \
+  v[7] = ROT63(v[7]);                                                         \
+                                                                              \
+  v[0] = ADD(v[0], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 4 + 0])); \
+  v[1] = ADD(v[1], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 5 + 0])); \
+  v[2] = ADD(v[2], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 6 + 0])); \
+  v[3] = ADD(v[3], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 7 + 0])); \
+  v[0] = ADD(v[0], v[5]);                                                     \
+  v[1] = ADD(v[1], v[6]);                                                     \
+  v[2] = ADD(v[2], v[7]);                                                     \
+  v[3] = ADD(v[3], v[4]);                                                     \
+  v[15] = XOR(v[15], v[0]);                                                   \
+  v[12] = XOR(v[12], v[1]);                                                   \
+  v[13] = XOR(v[13], v[2]);                                                   \
+  v[14] = XOR(v[14], v[3]);                                                   \
+  v[15] = ROT32(v[15]);                                                       \
+  v[12] = ROT32(v[12]);                                                       \
+  v[13] = ROT32(v[13]);                                                       \
+  v[14] = ROT32(v[14]);                                                       \
+  v[10] = ADD(v[10], v[15]);                                                  \
+  v[11] = ADD(v[11], v[12]);                                                  \
+  v[8] = ADD(v[8], v[13]);                                                    \
+  v[9] = ADD(v[9], v[14]);                                                    \
+  v[5] = XOR(v[5], v[10]);                                                    \
+  v[6] = XOR(v[6], v[11]);                                                    \
+  v[7] = XOR(v[7], v[8]);                                                     \
+  v[4] = XOR(v[4], v[9]);                                                     \
+  v[5] = ROT24(v[5]);                                                         \
+  v[6] = ROT24(v[6]);                                                         \
+  v[7] = ROT24(v[7]);                                                         \
+  v[4] = ROT24(v[4]);                                                         \
+  v[0] = ADD(v[0], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 4 + 1])); \
+  v[1] = ADD(v[1], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 5 + 1])); \
+  v[2] = ADD(v[2], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 6 + 1])); \
+  v[3] = ADD(v[3], LOAD((uint8_t const *)(m) + blake2b_sigma[r][2 * 7 + 1])); \
+  v[0] = ADD(v[0], v[5]);                                                     \
+  v[1] = ADD(v[1], v[6]);                                                     \
+  v[2] = ADD(v[2], v[7]);                                                     \
+  v[3] = ADD(v[3], v[4]);                                                     \
+  v[15] = XOR(v[15], v[0]);                                                   \
+  v[12] = XOR(v[12], v[1]);                                                   \
+  v[13] = XOR(v[13], v[2]);                                                   \
+  v[14] = XOR(v[14], v[3]);                                                   \
+  v[15] = ROT16(v[15]);                                                       \
+  v[12] = ROT16(v[12]);                                                       \
+  v[13] = ROT16(v[13]);                                                       \
+  v[14] = ROT16(v[14]);                                                       \
+  v[10] = ADD(v[10], v[15]);                                                  \
+  v[11] = ADD(v[11], v[12]);                                                  \
+  v[8] = ADD(v[8], v[13]);                                                    \
+  v[9] = ADD(v[9], v[14]);                                                    \
+  v[5] = XOR(v[5], v[10]);                                                    \
+  v[6] = XOR(v[6], v[11]);                                                    \
+  v[7] = XOR(v[7], v[8]);                                                     \
+  v[4] = XOR(v[4], v[9]);                                                     \
+  v[5] = ROT63(v[5]);                                                         \
+  v[6] = ROT63(v[6]);                                                         \
+  v[7] = ROT63(v[7]);                                                         \
+  v[4] = ROT63(v[4]);                                                         \
+} while (0)
+#endif
 
 #if defined(PERMUTE_WITH_GATHER)
 #define BLAKE2B_LOADMSG_V4(w, m) do {             \

@@ -6,9 +6,9 @@ do
     do
       for impl in PERMUTE_WITH_NONE PERMUTE_WITH_SHUFFLES PERMUTE_WITH_GATHER
       do
-        $compiler $opt -D$impl -DSUPERCOP -std=gnu99 -march=native -o bench.exe bench.c $primitive
+        $compiler $opt -D$impl -DSUPERCOP -std=gnu99 -mavx2 -o bench.exe bench.c $primitive
         echo $compiler $opt -D$impl $primitive
-        ./bench.exe | tail -3
+        taskset -c 0 ./bench.exe | tail -3
         rm -f bench.exe
       done
     done
